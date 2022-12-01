@@ -11,6 +11,7 @@ import com.intellij.openapi.editor.markup.RangeHighlighter;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.util.Key;
+import com.intellij.openapi.util.UserDataHolderBase;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LSPIJUtils;
 import org.eclipse.lsp4j.Diagnostic;
@@ -85,12 +86,18 @@ public class LSPDiagnosticsToMarkers implements Consumer<PublishDiagnosticsParam
 
     @NotNull
     private Map<String, RangeHighlighter[]> getAllMarkers(Editor editor) {
-        Map<String, RangeHighlighter[]> allMarkers = editor.getUserData(LSP_MARKER_KEY_PREFIX);
-        if (allMarkers == null) {
-            allMarkers = new HashMap<>();
-            editor.putUserData(LSP_MARKER_KEY_PREFIX, allMarkers);
+        if (editor instanceof UserDataHolderBase) {
+            return ((UserDataHolderBase) editor).putUserDataIfAbsent(LSP_MARKER_KEY_PREFIX, new HashMap<>());
+        } else {
+            synchronized (editor) {
+                Map<String, RangeHighlighter[]> allMarkers = editor.getUserData(LSP_MARKER_KEY_PREFIX);
+                if (allMarkers == null) {
+                    allMarkers = new HashMap<>();
+                    editor.putUserData(LSP_MARKER_KEY_PREFIX, allMarkers);
+                }
+                return allMarkers;
+            }
         }
-        return allMarkers;
     }
 
     private EffectType getEffectType(DiagnosticSeverity severity) {
@@ -102,10 +109,6 @@ public class LSPDiagnosticsToMarkers implements Consumer<PublishDiagnosticsParam
     }
 
     private Color getColor(DiagnosticSeverity severity) {
-        if (severity == null) {
-            // if not set, default to Error
-            return Color.RED;
-        }
         switch (severity) {
             case Hint:
                 return Color.GRAY;
@@ -115,7 +118,6 @@ public class LSPDiagnosticsToMarkers implements Consumer<PublishDiagnosticsParam
                 return Color.GRAY;
             case Warning:
                 return Color.YELLOW;
-
         }
         return Color.GRAY;
     }

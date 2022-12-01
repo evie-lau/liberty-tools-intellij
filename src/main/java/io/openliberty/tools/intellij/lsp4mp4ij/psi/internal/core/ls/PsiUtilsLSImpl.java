@@ -13,6 +13,7 @@ package io.openliberty.tools.intellij.lsp4mp4ij.psi.internal.core.ls;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.util.TextRange;
@@ -25,13 +26,15 @@ import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiNameIdentifierOwner;
 import com.intellij.psi.search.GlobalSearchScope;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.JsonRpcHelpers;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.PsiUtils;
-import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.IPsiUtils;
+// import open-liberty.intellij.javadoc.JavadocContentAccess;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LSPIJUtils;
+import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.IPsiUtils;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4mp.commons.ClasspathKind;
@@ -149,6 +152,11 @@ public class PsiUtilsLSImpl implements IPsiUtils {
     @Override
     public Range toRange(PsiElement element, int offset, int length) {
         return PsiUtils.toRange(element, offset, length);
+    }
+
+    @Override
+    public Range toRange(Document document, int offset, int length) {
+        return PsiUtils.toRange(document, offset, length);
     }
 
     @Override

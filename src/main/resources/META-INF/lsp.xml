@@ -73,7 +73,7 @@
                                     implementationClass="io.openliberty.tools.intellij.lsp4mp.lsp4ij.operations.hover.LSPTextHover"
                                     order="first"/>
         <codeInsight.inlayProvider language="JAVA"
-                                   implementationClass="io.openliberty.tools.intellij.lsp4mp.lsp4ij.operations.codelens.LSPInlayProvider"/>
+                                   implementationClass="io.openliberty.tools.intellij.lsp4mp.lsp4ij.operations.codelens.LSPCodelensInlayProvider"/>
     </extensions>
 
 </idea-plugin>

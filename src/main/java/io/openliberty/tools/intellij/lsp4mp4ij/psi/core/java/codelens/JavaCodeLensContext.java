@@ -30,7 +30,7 @@ public class JavaCodeLensContext extends AbstractJavaContext {
 	private final MicroProfileJavaCodeLensParams params;
 
 	public JavaCodeLensContext(String uri, PsiFile typeRoot, IPsiUtils utils, Module module,
-                               MicroProfileJavaCodeLensParams params) {
+							   MicroProfileJavaCodeLensParams params) {
 		super(uri, typeRoot, utils, module);
 		this.params = params;
 	}

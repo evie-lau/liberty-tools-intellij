@@ -1,13 +1,3 @@
-/*******************************************************************************
- * Copyright (c) 2020, 2022 Red Hat, Inc.
- * Distributed under license by Red Hat, Inc. All rights reserved.
- * This program is made available under the terms of the
- * Eclipse Public License v2.0 which accompanies this distribution,
- * and is available at https://www.eclipse.org/legal/epl-v20.html
- *
- * Contributors:
- * Red Hat, Inc. - initial API and implementation
- ******************************************************************************/
 package io.openliberty.tools.intellij.lsp4mp.lsp4ij;
 
 import com.google.gson.Gson;
@@ -22,6 +12,7 @@ import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.event.DocumentListener;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileDocumentManagerListener;
+import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.ModuleListener;
 import com.intellij.openapi.project.Project;
@@ -34,6 +25,7 @@ import org.eclipse.lsp4j.CodeActionCapabilities;
 import org.eclipse.lsp4j.CodeActionKind;
 import org.eclipse.lsp4j.CodeActionKindCapabilities;
 import org.eclipse.lsp4j.CodeActionLiteralSupportCapabilities;
+import org.eclipse.lsp4j.CodeActionOptions;
 import org.eclipse.lsp4j.CodeLensCapabilities;
 import org.eclipse.lsp4j.ColorProviderCapabilities;
 import org.eclipse.lsp4j.CompletionCapabilities;
@@ -52,6 +44,7 @@ import org.eclipse.lsp4j.FormattingCapabilities;
 import org.eclipse.lsp4j.HoverCapabilities;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializedParams;
+import org.eclipse.lsp4j.InlayHintCapabilities;
 import org.eclipse.lsp4j.MarkupKind;
 import org.eclipse.lsp4j.RangeFormattingCapabilities;
 import org.eclipse.lsp4j.ReferencesCapabilities;
@@ -250,7 +243,8 @@ public class LanguageServerWrapper {
                             currentConnectionProvider.handleMessage(message, this.languageServer, root);
                         }
                     }));
-            this.languageServer = launcher.getRemoteProxy(); // TODO this is where lemminx is failing
+
+            this.languageServer = launcher.getRemoteProxy();
             client.connect(languageServer, this);
             this.launcherFuture = launcher.startListening();
 
@@ -276,6 +270,7 @@ public class LanguageServerWrapper {
                                                     CodeActionKind.Source, CodeActionKind.SourceOrganizeImports))),
                                     true));
             textDocumentClientCapabilities.setCodeLens(new CodeLensCapabilities());
+            textDocumentClientCapabilities.setInlayHint(new InlayHintCapabilities());
             textDocumentClientCapabilities.setColorProvider(new ColorProviderCapabilities());
             CompletionItemCapabilities completionItemCapabilities = new CompletionItemCapabilities(Boolean.TRUE);
             completionItemCapabilities.setDocumentationFormat(Arrays.asList(MarkupKind.MARKDOWN, MarkupKind.PLAINTEXT));
@@ -764,6 +759,10 @@ public class LanguageServerWrapper {
                     serverCapabilities.setDocumentRangeFormattingProvider(documentRangeFormattingProvider.getRight());
                     addRegistration(reg, () -> serverCapabilities.setDocumentRangeFormattingProvider(documentRangeFormattingProvider ));
                 }
+            } else if ("textDocument/codeAction".equals(reg.getMethod())) { //$NON-NLS-1$
+                final Either<Boolean, CodeActionOptions> beforeRegistration = serverCapabilities.getCodeActionProvider();
+                serverCapabilities.setCodeActionProvider(Boolean.TRUE);
+                addRegistration(reg, () -> serverCapabilities.setCodeActionProvider(beforeRegistration));
             }
         });
     }

@@ -9,7 +9,10 @@
 *******************************************************************************/
 package io.openliberty.tools.intellij.lsp4mp4ij.psi.core.project;
 
+import com.intellij.openapi.vfs.VirtualFile;
+
 import java.util.List;
+import java.util.Map;
 
 /**
  * Configuration file API

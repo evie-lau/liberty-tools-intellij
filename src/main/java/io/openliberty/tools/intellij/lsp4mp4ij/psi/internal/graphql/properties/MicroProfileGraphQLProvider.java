@@ -16,9 +16,9 @@ package io.openliberty.tools.intellij.lsp4mp4ij.psi.internal.graphql.properties;
 
 import com.intellij.openapi.module.Module;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.AbstractStaticPropertiesProvider;
+import io.openliberty.tools.intellij.lsp4mp4ij.psi.internal.graphql.MicroProfileGraphQLConstants;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.SearchContext;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.PsiTypeUtils;
-import io.openliberty.tools.intellij.lsp4mp4ij.psi.internal.graphql.MicroProfileGraphQLConstants;
 
 /**
  * Properties provider that provides static MicroProfile GraphQL properties

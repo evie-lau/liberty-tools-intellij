@@ -1,13 +1,3 @@
-/*******************************************************************************
- * Copyright (c) 2020, 2022 Red Hat, Inc.
- * Distributed under license by Red Hat, Inc. All rights reserved.
- * This program is made available under the terms of the
- * Eclipse Public License v2.0 which accompanies this distribution,
- * and is available at https://www.eclipse.org/legal/epl-v20.html
- *
- * Contributors:
- * Red Hat, Inc. - initial API and implementation
- ******************************************************************************/
 package io.openliberty.tools.intellij.lsp4mp.lsp4ij;
 
 import com.intellij.lang.Language;
@@ -25,12 +15,16 @@ import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
+import org.apache.commons.lang.StringUtils;
 import org.eclipse.lsp4j.CompletionParams;
 import org.eclipse.lsp4j.HoverParams;
 import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.ResourceOperation;
+import org.eclipse.lsp4j.TextDocumentEdit;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentPositionParams;
 import org.eclipse.lsp4j.TextEdit;
@@ -42,10 +36,13 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.io.File;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 
 public class LSPIJUtils {
     private static final Logger LOGGER = LoggerFactory.getLogger(LSPIJUtils.class);
@@ -139,8 +136,63 @@ public class LSPIJUtils {
     }
 
     public static void applyWorkspaceEdit(WorkspaceEdit edit) {
-        //TODO: implements WorkspaceEdit
+        applyWorkspaceEdit(edit, null);
     }
+
+    public static void applyWorkspaceEdit(WorkspaceEdit edit, String label) {
+        if (edit.getDocumentChanges() != null) {
+            for(Either<TextDocumentEdit, ResourceOperation> change : edit.getDocumentChanges()) {
+                if (change.isLeft()) {
+                    VirtualFile file = findResourceFor(change.getLeft().getTextDocument().getUri());
+                    if (file != null) {
+                        Document document = getDocument(file);
+                        if (document != null) {
+                            applyWorkspaceEdit(document, change.getLeft().getEdits());
+                        }
+                    }
+                }
+            }
+        } else if (edit.getChanges() != null) {
+            for(Map.Entry<String, List<TextEdit>> change : edit.getChanges().entrySet()) {
+                VirtualFile file = findResourceFor(change.getKey());
+                if (file != null) {
+                    Document document = getDocument(file);
+                    if (document != null) {
+                        applyWorkspaceEdit(document, change.getValue());
+                    }
+                }
+
+            }
+
+        }
+    }
+
+    private static void applyWorkspaceEdit(Document document, List<TextEdit> edits) {
+        for(TextEdit edit : edits) {
+            if (edit.getRange() != null) {
+                String text = edit.getNewText();
+                int start = toOffset(edit.getRange().getStart(), document);
+                int end = toOffset(edit.getRange().getEnd(), document);
+                if (StringUtils.isEmpty(text)) {
+                    document.deleteString(start, end);
+                } else {
+                    text = text.replaceAll("\r", "");
+                    if (end >= 0) {
+                        if (end - start <= 0) {
+                            document.insertString(start, text);
+                        } else {
+                            document.replaceString(start, end, text);
+                        }
+                    } else if (start == 0) {
+                        document.setText(text);
+                    } else if (start > 0) {
+                        document.insertString(start, text);
+                    }
+                }
+            }
+        }
+    }
+
 
     public static Language getDocumentLanguage(Document document, Project project) {
         VirtualFile file = FileDocumentManager.getInstance().getFile(document);
@@ -152,7 +204,11 @@ public class LSPIJUtils {
     }
 
     public static VirtualFile findResourceFor(String uri) {
-        return LocalFileSystem.getInstance().findFileByIoFile(Paths.get(uri).toFile());
+        try {
+            return VfsUtil.findFileByURL(new URL(uri));
+        } catch (MalformedURLException e) {
+            return null;
+        }
     }
 
     public static Editor[] editorsForFile(VirtualFile file) {

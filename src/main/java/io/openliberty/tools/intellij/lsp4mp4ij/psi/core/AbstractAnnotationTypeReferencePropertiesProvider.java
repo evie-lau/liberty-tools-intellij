@@ -12,9 +12,10 @@ package io.openliberty.tools.intellij.lsp4mp4ij.psi.core;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiModifierListOwner;
 import com.intellij.util.Query;
-import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.AnnotationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.AnnotationUtils.isMatchAnnotation;
 
 /**
  * Abstract class for properties provider based on annotation search.
@@ -53,7 +54,7 @@ public abstract class AbstractAnnotationTypeReferencePropertiesProvider extends 
 			PsiAnnotation[] annotations = psiElement.getAnnotations();
 			for (PsiAnnotation annotation : annotations) {
 				for (String annotationName : names) {
-					if (AnnotationUtils.isMatchAnnotation(annotation, annotationName)) {
+					if (isMatchAnnotation(annotation, annotationName)) {
 						processAnnotation(psiElement, annotation, annotationName, context);
 						break;
 					}

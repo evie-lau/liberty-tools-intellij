@@ -1,6 +1,7 @@
 package io.openliberty.tools.intellij.lsp4mp.lsp4ij;
 
 import com.intellij.lang.Language;
+import com.intellij.openapi.fileTypes.FileType;
 
 import javax.annotation.Nonnull;
 import java.util.AbstractMap;

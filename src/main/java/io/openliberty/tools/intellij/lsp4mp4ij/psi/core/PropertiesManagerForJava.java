@@ -26,17 +26,18 @@ import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifierListOwner;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.util.PsiTreeUtil;
-import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.IPsiUtils;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.codelens.IJavaCodeLensParticipant;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.codelens.JavaCodeLensContext;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.completion.IJavaCompletionParticipant;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.completion.JavaCompletionContext;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.definition.IJavaDefinitionParticipant;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.definition.JavaDefinitionContext;
+import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.IPsiUtils;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.diagnostics.IJavaDiagnosticsParticipant;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.diagnostics.JavaDiagnosticsContext;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.hover.IJavaHoverParticipant;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.hover.JavaHoverContext;
+import io.openliberty.tools.intellij.lsp4mp4ij.psi.internal.core.java.codeaction.CodeActionHandler;
 import org.eclipse.lsp4j.CodeAction;
 import org.eclipse.lsp4j.CodeLens;
 import org.eclipse.lsp4j.CompletionItem;
@@ -80,6 +81,12 @@ public class PropertiesManagerForJava {
 
     public static PropertiesManagerForJava getInstance() {
         return INSTANCE;
+    }
+
+    private final CodeActionHandler codeActionHandler;
+
+    private PropertiesManagerForJava() {
+        this.codeActionHandler = new CodeActionHandler();
     }
 
     /**
@@ -448,7 +455,16 @@ public class PropertiesManagerForJava {
         return utils.resolveCompilationUnit(uri);
     }
 
+    /**
+     * Returns the codeAction list according the given codeAction parameters.
+     *
+     * @param params  the codeAction parameters
+     * @param utils   the utilities class
+     * @return the codeAction list according the given codeAction parameters.
+     */
     public List<? extends CodeAction> codeAction(MicroProfileJavaCodeActionParams params, IPsiUtils utils) {
-        return Collections.emptyList();
+        return ApplicationManager.getApplication().runReadAction((Computable<List<? extends CodeAction>>) () -> {
+            return codeActionHandler.codeAction(params, utils);
+        });
     }
 }

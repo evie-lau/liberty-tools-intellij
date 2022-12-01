@@ -14,6 +14,7 @@
 package io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.codelens;
 
 import com.intellij.openapi.extensions.ExtensionPointName;
+import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.completion.IJavaCompletionParticipant;
 import org.eclipse.lsp4j.CodeLens;
 
 import java.util.List;
