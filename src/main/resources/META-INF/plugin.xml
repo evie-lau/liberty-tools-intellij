@@ -146,10 +146,23 @@
     <projectListeners>
         <listener class="io.openliberty.tools.intellij.runConfiguration.LibertyRunManagerListener" topic="com.intellij.execution.RunManagerListener"/>
     </projectListeners>
+    
+    <projectListeners>
+        <listener class="io.openliberty.tools.intellij.lsp4mp.lsp4ij.ConnectDocumentToLanguageServerSetupParticipant" topic="com.intellij.openapi.project.ProjectManagerListener"/>
+    </projectListeners>
+
+    <projectListeners>
+        <listener class="io.openliberty.tools.intellij.lsp4mp.lsp4ij.ConnectDocumentToLanguageServerSetupParticipant" topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
+    
+    <actions>
+        <action id="microprofile.command.open.uri"
+                class="com.redhat.devtools.intellij.lsp4mp4ij.psi.core.command.MicroprofileOpenURIAction"
+                text="MicroprofileOpenURIAction"/>
+    </actions>
 
     <!-- Default resource location for localizing Liberty actions strings -->
     <resource-bundle>messages.LibertyBundles</resource-bundle>
-
     <actions resource-bundle="messages.LibertyBundles">
         <action id="io.openliberty.tools.intellij.actions.LibertyDevStartAction"
                 class="io.openliberty.tools.intellij.actions.LibertyDevStartAction"

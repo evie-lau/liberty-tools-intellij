@@ -10,12 +10,12 @@
  ******************************************************************************/
 package io.openliberty.tools.intellij.lsp4mp.lsp4ij;
 
-import com.intellij.openapi.components.ProjectComponent;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManagerListener;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 
-public class ConnectDocumentToLanguageServerSetupParticipant implements ProjectComponent, FileEditorManagerListener {
+public class ConnectDocumentToLanguageServerSetupParticipant implements FileEditorManagerListener, ProjectManagerListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConnectDocumentToLanguageServerSetupParticipant.class);
 
     private Project project;
@@ -34,7 +34,7 @@ public class ConnectDocumentToLanguageServerSetupParticipant implements ProjectC
     }
 
     @Override
-    public void projectOpened() {
+    public void projectOpened(@NotNull Project project) {
         project.getMessageBus().connect(project).subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, this);
     }
 
