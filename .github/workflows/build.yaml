@@ -4,7 +4,7 @@ on:
   push:
     branches: '**'
   pull_request:
-    branches: [ main, ls-integration, test-automation ]
+    branches: [ main, ls-integration, test-automation, windows ]
 
 jobs:
   build:
@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runtime: [ linux, mac ]
+        runtime: [ windows ]
         include:
           - runtime: linux
             os: ubuntu-latest
@@ -20,6 +20,9 @@ jobs:
           - runtime: mac
             os: macOS-latest
             reportName: mac-test-report
+          - runtime: windows
+            os: windows-latest
+            reportName: windows-test-report
     steps:
       - name: 'Checkout liberty-tools-intellij'
         uses: actions/checkout@v3
