@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.messages.MessageBusConnection;
 
-import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageClientImpl;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.client.LanguageClientImpl;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageServerWrapper;
 
 /**

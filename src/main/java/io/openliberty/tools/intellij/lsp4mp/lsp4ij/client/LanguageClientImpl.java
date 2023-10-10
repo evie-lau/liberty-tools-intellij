@@ -1,4 +1,4 @@
-package io.openliberty.tools.intellij.lsp4mp.lsp4ij;
+package io.openliberty.tools.intellij.lsp4mp.lsp4ij.client;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.module.Module;
@@ -6,6 +6,9 @@ import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LSPIJUtils;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageServerWrapper;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.ServerMessageHandler;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.operations.diagnostics.LSPDiagnosticHandler;
 import org.eclipse.lsp4j.ApplyWorkspaceEditParams;
 import org.eclipse.lsp4j.ApplyWorkspaceEditResponse;
@@ -20,6 +23,8 @@ import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -102,11 +107,12 @@ public class LanguageClientImpl implements LanguageClient {
 
     @Override
     public CompletableFuture<List<WorkspaceFolder>> workspaceFolders() {
-        List<WorkspaceFolder> res = new ArrayList<>(wrapper.allWatchedProjects.size());
-        for (final Module project : wrapper.allWatchedProjects) {
-            res.add(LSPIJUtils.toWorkspaceFolder(project));
+        Project project = wrapper.getProject();
+        if (project != null) {
+            List<WorkspaceFolder> folders = Arrays.asList(LSPIJUtils.toWorkspaceFolder(project));
+            return CompletableFuture.completedFuture(folders);
         }
-        return CompletableFuture.completedFuture(res);
+        return CompletableFuture.completedFuture(Collections.emptyList());
     }
 
     protected <R> CompletableFuture<R> runAsBackground(String title, Supplier<R> supplier) {

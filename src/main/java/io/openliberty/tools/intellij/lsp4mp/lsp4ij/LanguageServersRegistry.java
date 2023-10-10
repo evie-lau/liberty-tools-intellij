@@ -1,57 +1,102 @@
+/*******************************************************************************
+ * Copyright (c) 2019 Red Hat, Inc.
+ * Distributed under license by Red Hat, Inc. All rights reserved.
+ * This program is made available under the terms of the
+ * Eclipse Public License v2.0 which accompanies this distribution,
+ * and is available at https://www.eclipse.org/legal/epl-v20.html
+ *
+ * Contributors:
+ * Red Hat, Inc. - initial API and implementation
+ ******************************************************************************/
 package io.openliberty.tools.intellij.lsp4mp.lsp4ij;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.lang.Language;
 import com.intellij.openapi.editor.Document;
-import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.client.LanguageClientImpl;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.server.StreamConnectionProvider;
+import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.validation.NonNull;
 import org.eclipse.lsp4j.services.LanguageServer;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import javax.swing.*;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+/**
+ * Language server registry.
+ */
 public class LanguageServersRegistry {
     private static final Logger LOGGER = LoggerFactory.getLogger(LanguageServersRegistry.class);
 
     public abstract static class LanguageServerDefinition {
-        public final @Nonnull String id;
-        public final @Nonnull String label;
-        public final boolean isSingleton;
-        public final @Nonnull Map<Language, String> languageIdMappings;
-        public final Map<Language, String> languageFilePatternMappings;
 
-        public LanguageServerDefinition(@Nonnull String id, @Nonnull String label, boolean isSingleton) {
+        enum Scope {
+            project, application
+        }
+        private static final int DEFAULT_LAST_DOCUMENTED_DISCONNECTED_TIMEOUT = 5;
+
+        public final @Nonnull
+        String id;
+        public final @Nonnull
+        String label;
+        public final boolean isSingleton;
+        public final @Nonnull
+        Map<Language, String> languageIdMappings;
+        public final String description;
+        public final int lastDocumentDisconnectedTimeout;
+        private boolean enabled;
+
+        final @Nonnull Scope scope;
+
+        public LanguageServerDefinition(@Nonnull String id, @Nonnull String label, String description, boolean isSingleton, Integer lastDocumentDisconnectedTimeout, String scope) {
             this.id = id;
             this.label = label;
+            this.description = description;
             this.isSingleton = isSingleton;
+            this.lastDocumentDisconnectedTimeout = lastDocumentDisconnectedTimeout != null && lastDocumentDisconnectedTimeout > 0 ? lastDocumentDisconnectedTimeout : DEFAULT_LAST_DOCUMENTED_DISCONNECTED_TIMEOUT;
             this.languageIdMappings = new ConcurrentHashMap<>();
-            this.languageFilePatternMappings = new ConcurrentHashMap<>();
+            this.scope = scope == null || scope.isBlank()? Scope.application : Scope.valueOf(scope);
+            setEnabled(true);
         }
 
-        public void registerAssociation(@Nonnull Language language, @Nonnull String languageId, String filePattern) {
+
+        /**
+         * Returns true if the language server definition is enabled and false otherwise.
+         *
+         * @return true if the language server definition is enabled and false otherwise.
+         */
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        /**
+         * Set enabled the language server definition.
+         *
+         * @param enabled enabled the language server definition.
+         */
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public void registerAssociation(@Nonnull Language language, @Nonnull String languageId) {
             this.languageIdMappings.put(language, languageId);
-            if (filePattern != null) {
-                this.languageFilePatternMappings.put(language, filePattern);
-            }
         }
 
-        public abstract StreamConnectionProvider createConnectionProvider();
+        @Nonnull
+        public String getDisplayName() {
+            return label != null ? label : id;
+        }
+
+        public abstract StreamConnectionProvider createConnectionProvider(Project project);
 
         public LanguageClientImpl createLanguageClient(Project project) {
             return new LanguageClientImpl(project);
@@ -61,20 +106,32 @@ public class LanguageServersRegistry {
             return LanguageServer.class;
         }
 
+        public <S extends LanguageServer> Launcher.Builder<S> createLauncherBuilder() {
+            return new Launcher.Builder<>();
+        }
     }
 
     static class ExtensionLanguageServerDefinition extends LanguageServerDefinition {
-        private ServerExtensionPointBean extension;
+        private final ServerExtensionPointBean extension;
 
         public ExtensionLanguageServerDefinition(ServerExtensionPointBean element) {
-            super(element.id, element.label, element.singleton);
+            super(element.id, element.label, element.description, element.singleton, element.lastDocumentDisconnectedTimeout, element.scope);
             this.extension = element;
         }
 
         @Override
-        public StreamConnectionProvider createConnectionProvider() {
+        public StreamConnectionProvider createConnectionProvider(Project project) {
+            String serverImpl = extension.getImplementationClassName();
+            if (serverImpl == null || serverImpl.isEmpty()) {
+                throw new RuntimeException(
+                        "Exception occurred while creating an instance of the stream connection provider, you have to define server/@class attribute in the extension point."); //$NON-NLS-1$
+            }
             try {
-                return extension.getInstance();
+                if (Scope.project == scope) {
+                    return (StreamConnectionProvider) project.instantiateClassWithConstructorInjection(extension.getServerImpl(), project,
+                            extension.getPluginDescriptor().getPluginId());
+                }
+                return (StreamConnectionProvider) project.instantiateClass(extension.getServerImpl(), extension.getPluginDescriptor().getPluginId());
             } catch (Exception e) {
                 throw new RuntimeException(
                         "Exception occurred while creating an instance of the stream connection provider", e); //$NON-NLS-1$
@@ -100,17 +157,18 @@ public class LanguageServersRegistry {
         public Class<? extends LanguageServer> getServerInterface() {
             String serverInterface = extension.serverInterface;
             if (serverInterface != null && !serverInterface.isEmpty()) {
-                    try {
-                        return (Class<? extends LanguageServer>) (Class<?>)extension.getServerInterface();
-                    } catch (ClassNotFoundException exception) {
-                        LOGGER.warn(exception.getLocalizedMessage(), exception);
-                    }
+                try {
+                    return (Class<? extends LanguageServer>) (Class<?>) extension.getServerInterface();
+                } catch (ClassNotFoundException exception) {
+                    LOGGER.warn(exception.getLocalizedMessage(), exception);
                 }
-            return super.getServerInterface();
             }
+            return super.getServerInterface();
         }
+    }
 
     private static LanguageServersRegistry INSTANCE = null;
+
     public static LanguageServersRegistry getInstance() {
         if (INSTANCE == null) {
             INSTANCE = new LanguageServersRegistry();
@@ -118,14 +176,15 @@ public class LanguageServersRegistry {
         return INSTANCE;
     }
 
-    private List<ContentTypeToLanguageServerDefinition> connections = new ArrayList<>();
+    private final List<ContentTypeToLanguageServerDefinition> connections = new ArrayList<>();
+
+    private Map<String, LanguageServerIconProviderDefinition> serverIcons = new HashMap<>();
 
     private LanguageServersRegistry() {
         initialize();
     }
 
     private void initialize() {
-        LOGGER.info("***** Initializing Language Servers *****");
         Map<String, LanguageServerDefinition> servers = new HashMap<>();
         List<LanguageMapping> languageMappings = new ArrayList<>();
         for (ServerExtensionPointBean server : ServerExtensionPointBean.EP_NAME.getExtensions()) {
@@ -136,21 +195,28 @@ public class LanguageServersRegistry {
         for (LanguageMappingExtensionPointBean extension : LanguageMappingExtensionPointBean.EP_NAME.getExtensions()) {
             Language language = Language.findLanguageByID(extension.language);
             if (language != null) {
-                languageMappings.add(new LanguageMapping(language, extension.id, extension.serverId, extension.filePattern));
+                languageMappings.add(new LanguageMapping(language, extension.id, extension.serverId, extension.getDocumentMatcher()));
             }
+        }
+
+        for (ServerIconProviderExtensionPointBean extension : ServerIconProviderExtensionPointBean.EP_NAME.getExtensions()) {
+            serverIcons.put(extension.serverId, new LanguageServerIconProviderDefinition(extension));
         }
 
         for (LanguageMapping mapping : languageMappings) {
             LanguageServerDefinition lsDefinition = servers.get(mapping.languageId);
             if (lsDefinition != null) {
-                LOGGER.info("Registering language server '" + lsDefinition.id + "' with language: " + mapping.language.getID() + " and file pattern: " + lsDefinition.languageFilePatternMappings);
-                registerAssociation(mapping.language, lsDefinition, mapping.languageId, mapping.filePattern);
+                registerAssociation(lsDefinition, mapping);
             } else {
-                LOGGER.warn("Language server '" + mapping.id + "' not available"); //$NON-NLS-1$ //$NON-NLS-2$
+                LOGGER.warn("server '" + mapping.id + "' not available"); //$NON-NLS-1$ //$NON-NLS-2$
             }
         }
+    }
 
-        LOGGER.info("**********");
+    public Icon getServerIcon(String serverId) {
+        LanguageServerIconProviderDefinition iconProvider = serverIcons.get(serverId);
+        Icon icon = iconProvider != null ? iconProvider.getIcon() : null;
+        return icon != null ? icon : AllIcons.Webreferences.Server;
     }
 
     /**
@@ -158,27 +224,25 @@ public class LanguageServersRegistry {
      * @return the {@link LanguageServerDefinition}s <strong>directly</strong> associated to the given content-type.
      * This does <strong>not</strong> include the one that match transitively as per content-type hierarchy
      */
-    List<ContentTypeToLanguageServerDefinition> findProviderFor(final @NonNull Language contentType) {
+    List<ContentTypeToLanguageServerDefinition> findProviderFor(final @NotNull Language contentType) {
         return connections.stream()
                 .filter(entry -> contentType.isKindOf(entry.getKey()))
                 .collect(Collectors.toList());
     }
 
 
-    public void registerAssociation(@Nonnull Language language,
-                                    @Nonnull LanguageServerDefinition serverDefinition, @Nullable String languageId, @Nullable String filePattern) {
+    public void registerAssociation(@NotNull LanguageServerDefinition serverDefinition, @Nullable LanguageMapping mapping) {
+        @NotNull Language language = mapping.language;
+        @Nullable String languageId = mapping.languageId;
         if (languageId != null) {
-            serverDefinition.registerAssociation(language, languageId, filePattern);
+            serverDefinition.registerAssociation(language, languageId);
         }
 
-        connections.add(new ContentTypeToLanguageServerDefinition(language, serverDefinition));
+        connections.add(new ContentTypeToLanguageServerDefinition(language, serverDefinition, mapping.getDocumentMatcher()));
     }
 
-    public List<ContentTypeToLanguageServerDefinition> getContentTypeToLSPExtensions() {
-        return this.connections.stream().filter(mapping -> mapping.getValue() instanceof ExtensionLanguageServerDefinition).collect(Collectors.toList());
-    }
-
-    public @Nullable LanguageServerDefinition getDefinition(@NonNull String languageServerId) {
+    public @Nullable
+    LanguageServerDefinition getDefinition(@NonNull String languageServerId) {
         for (ContentTypeToLanguageServerDefinition mapping : this.connections) {
             if (mapping.getValue().id.equals(languageServerId)) {
                 return mapping.getValue();
@@ -192,68 +256,33 @@ public class LanguageServersRegistry {
      */
     private static class LanguageMapping {
 
-        @Nonnull public final String id;
-        @Nonnull public final Language language;
-        @Nullable public final String languageId;
-        @Nullable public final String filePattern;
+        @NotNull
+        public final String id;
+        @NotNull
+        public final Language language;
+        @Nullable
+        public final String languageId;
 
-        public LanguageMapping(@Nonnull Language language, @Nonnull String id, @Nullable String languageId, @Nullable String filePattern) {
+        private final DocumentMatcher documentMatcher;
+
+        public LanguageMapping(@NotNull Language language, @Nullable String id, @Nullable String languageId,  @NotNull DocumentMatcher documentMatcher) {
             this.language = language;
             this.id = id;
             this.languageId = languageId;
-            this.filePattern = filePattern;
+            this.documentMatcher = documentMatcher;
         }
 
-    }
-
-    /**
-     * @param file
-     * @param serverDefinition
-     * @return whether the given serverDefinition is suitable for the file
-     */
-    public boolean matches(@Nonnull VirtualFile file, @NonNull LanguageServerDefinition serverDefinition,
-                           Project project) {
-        return getAvailableLSFor(file, project).contains(serverDefinition);
-    }
-
-    /**
-     * @param document
-     * @param serverDefinition
-     * @return whether the given serverDefinition is suitable for the file
-     */
-    public boolean matches(@Nonnull Document document, @Nonnull LanguageServerDefinition serverDefinition,
-                           Project project) {
-        return getAvailableLSFor(document, project).contains(serverDefinition);
-    }
-
-    private Set<LanguageServerDefinition> getAvailableLSFor(Document document, Project project) {
-        VirtualFile file = FileDocumentManager.getInstance().getFile(document);
-        return getAvailableLSFor(file, project);
-    }
-
-    private Set<LanguageServerDefinition> getAvailableLSFor(VirtualFile file, Project project) {
-        Language language = LSPIJUtils.getFileLanguage(file, project);
-        Set<LanguageServerDefinition> res = new HashSet<>();
-        if (language != null) {
-            for (ContentTypeToLanguageServerDefinition mapping : this.connections) {
-                if (language.isKindOf(mapping.getKey())) {
-                    LanguageServerDefinition lsDef = mapping.getValue();
-                    if (!lsDef.languageFilePatternMappings.isEmpty() && lsDef.languageFilePatternMappings.containsKey(language)) {
-                        // check if document matches file pattern
-                        Path path = Paths.get(file.getPath());
-                        final PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + lsDef.languageFilePatternMappings.get(language));
-                        if (matcher.matches(path)) {
-                            LOGGER.trace("Available language server: " + mapping.getValue().id + " for file: " + file);
-                            res.add(mapping.getValue());
-                        }
-                    } else {
-                        LOGGER.trace("Available language server: " + mapping.getValue().id + " for file: " + file);
-                        res.add(mapping.getValue());
-                    }
-                }
-            }
+        public DocumentMatcher getDocumentMatcher() {
+            return documentMatcher;
         }
-        return res;
     }
+
+    public Set<LanguageServerDefinition> getAllDefinitions() {
+        return connections
+                .stream()
+                .map(AbstractMap.SimpleEntry::getValue)
+                .collect(Collectors.toSet());
+    }
+
 }
 
