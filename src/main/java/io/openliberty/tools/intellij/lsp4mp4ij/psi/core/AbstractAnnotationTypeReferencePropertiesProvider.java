@@ -9,12 +9,17 @@
 *******************************************************************************/
 package io.openliberty.tools.intellij.lsp4mp4ij.psi.core;
 
+import com.intellij.openapi.progress.ProcessCanceledException;
+import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiModifierListOwner;
 import com.intellij.util.Query;
-import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.AnnotationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.CancellationException;
+
+import static io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.AnnotationUtils.isMatchAnnotation;
 
 /**
  * Abstract class for properties provider based on annotation search.
@@ -53,12 +58,14 @@ public abstract class AbstractAnnotationTypeReferencePropertiesProvider extends 
 			PsiAnnotation[] annotations = psiElement.getAnnotations();
 			for (PsiAnnotation annotation : annotations) {
 				for (String annotationName : names) {
-					if (AnnotationUtils.isMatchAnnotation(annotation, annotationName)) {
+					if (isMatchAnnotation(annotation, annotationName)) {
 						processAnnotation(psiElement, annotation, annotationName, context);
 						break;
 					}
 				}
 			}
+		} catch (IndexNotReadyException | ProcessCanceledException | CancellationException e) {
+			throw e;
 		} catch (Exception e) {
 				LOGGER.error("Cannot compute MicroProfile properties for the Java element '"
 						+ psiElement + "'.", e);

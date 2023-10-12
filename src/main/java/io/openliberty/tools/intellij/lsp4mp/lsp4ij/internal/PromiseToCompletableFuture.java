@@ -19,7 +19,7 @@ import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import com.redhat.devtools.intellij.lsp4ij.client.ExecutionAttemptLimitReachedException;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.client.ExecutionAttemptLimitReachedException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.concurrency.CancellablePromise;

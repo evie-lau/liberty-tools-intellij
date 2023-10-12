@@ -13,7 +13,9 @@
 *******************************************************************************/
 package io.openliberty.tools.intellij.lsp4mp4ij.psi.internal.config.java;
 
-import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.MicroProfileConfigConstants;
+import static io.openliberty.tools.intellij.lsp4mp4ij.psi.core.MicroProfileConfigConstants.CONFIG_PROPERTY_ANNOTATION;
+import static io.openliberty.tools.intellij.lsp4mp4ij.psi.core.MicroProfileConfigConstants.CONFIG_PROPERTY_ANNOTATION_NAME;
+
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.definition.PropertiesDefinitionParticipant;
 
 /**
@@ -30,8 +32,8 @@ import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.definition.Properti
 public class MicroProfileConfigDefinitionParticipant extends PropertiesDefinitionParticipant {
 
 	public MicroProfileConfigDefinitionParticipant() {
-		super(MicroProfileConfigConstants.CONFIG_PROPERTY_ANNOTATION, new String[] {
-				MicroProfileConfigConstants.CONFIG_PROPERTY_ANNOTATION_NAME
+		super(CONFIG_PROPERTY_ANNOTATION, new String[] {
+				CONFIG_PROPERTY_ANNOTATION_NAME
 		});
 	}
 }

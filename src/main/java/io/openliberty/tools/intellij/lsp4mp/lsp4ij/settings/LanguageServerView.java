@@ -21,8 +21,8 @@ import com.intellij.ui.components.JBCheckBox;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UI;
-import com.redhat.devtools.intellij.lsp4ij.LanguageServerBundle;
-import com.redhat.devtools.intellij.lsp4ij.LanguageServersRegistry;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageServerBundle;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageServersRegistry;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;

@@ -18,7 +18,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.NamedConfigurable;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.NlsContexts;
-import com.redhat.devtools.intellij.lsp4ij.LanguageServersRegistry;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageServersRegistry;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;

@@ -1,44 +1,37 @@
 package io.openliberty.tools.intellij.lsp4mp.lsp4ij.client;
 
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.module.Module;
-import com.intellij.openapi.progress.EmptyProgressIndicator;
-import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Disposer;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LSPIJUtils;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageServerWrapper;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.ServerMessageHandler;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.operations.diagnostics.LSPDiagnosticHandler;
-import org.eclipse.lsp4j.ApplyWorkspaceEditParams;
-import org.eclipse.lsp4j.ApplyWorkspaceEditResponse;
-import org.eclipse.lsp4j.MessageActionItem;
-import org.eclipse.lsp4j.MessageParams;
-import org.eclipse.lsp4j.PublishDiagnosticsParams;
-import org.eclipse.lsp4j.RegistrationParams;
-import org.eclipse.lsp4j.ShowMessageRequestParams;
-import org.eclipse.lsp4j.UnregistrationParams;
-import org.eclipse.lsp4j.WorkspaceFolder;
+import org.eclipse.lsp4j.*;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
-public class LanguageClientImpl implements LanguageClient {
+public class LanguageClientImpl implements LanguageClient, Disposable {
     private final Project project;
     private Consumer<PublishDiagnosticsParams> diagnosticHandler;
 
     private LanguageServer server;
     private LanguageServerWrapper wrapper;
 
+    private boolean disposed;
+
+    private Runnable didChangeConfigurationListener;
+
     public LanguageClientImpl(Project project) {
         this.project = project;
+        Disposer.register(project, this);
     }
 
     public Project getProject() {
@@ -53,9 +46,6 @@ public class LanguageClientImpl implements LanguageClient {
 
     protected final LanguageServer getLanguageServer() {
         return server;
-    }
-    protected final LanguageServerWrapper getLanguageServerWrapper() {
-        return wrapper;
     }
 
     @Override
@@ -75,9 +65,7 @@ public class LanguageClientImpl implements LanguageClient {
 
     @Override
     public final void publishDiagnostics(PublishDiagnosticsParams diagnostics) {
-        if (this.diagnosticHandler != null) {
-            this.diagnosticHandler.accept(diagnostics);
-        }
+        this.diagnosticHandler.accept(diagnostics);
     }
 
     @Override
@@ -115,23 +103,38 @@ public class LanguageClientImpl implements LanguageClient {
         return CompletableFuture.completedFuture(Collections.emptyList());
     }
 
-    protected <R> CompletableFuture<R> runAsBackground(String title, Supplier<R> supplier) {
-        CompletableFuture<R> future = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            Runnable task = () -> ProgressManager.getInstance().runProcess(() -> {
-                try {
-                    future.complete(supplier.get());
-                } catch (Throwable t) {
-                    future.completeExceptionally(t);
-                }
-            }, new EmptyProgressIndicator());
-            if (DumbService.getInstance(getProject()).isDumb()) {
-                DumbService.getInstance(getProject()).runWhenSmart(task);
-            } else {
-                task.run();
-            }
-        });
-        return future;
+    @Override
+    public void dispose() {
+        this.disposed = true;
+    }
+
+    public boolean isDisposed() {
+        return disposed || getProject().isDisposed();
+    }
+
+    protected Object createSettings() {
+        return null;
+    }
+
+    protected synchronized Runnable getDidChangeConfigurationListener() {
+        if (didChangeConfigurationListener != null) {
+            return didChangeConfigurationListener;
+        }
+        didChangeConfigurationListener = this::triggerChangeConfiguration;
+        return didChangeConfigurationListener;
+    }
+
+    protected void triggerChangeConfiguration() {
+        LanguageServer languageServer = getLanguageServer();
+        if (languageServer == null) {
+            return;
+        }
+        Object settings = createSettings();
+        if (settings == null) {
+            return;
+        }
+        DidChangeConfigurationParams params = new DidChangeConfigurationParams(settings);
+        languageServer.getWorkspaceService().didChangeConfiguration(params);
     }
 
 }

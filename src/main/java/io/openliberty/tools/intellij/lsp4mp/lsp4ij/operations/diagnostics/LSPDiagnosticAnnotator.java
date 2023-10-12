@@ -20,104 +20,82 @@ import com.intellij.lang.annotation.ExternalAnnotator;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LSPIJUtils;
-import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LSPVirtualFileWrapper;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LSPVirtualFileData;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageServiceAccessor;
-
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.operations.codeactions.LSPLazyCodeActionIntentionAction;
 import org.eclipse.lsp4j.Diagnostic;
-import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collection;
+import java.net.URI;
 import java.util.List;
+
+import static io.openliberty.tools.intellij.lsp4mp.lsp4ij.operations.diagnostics.SeverityMapping.toHighlightSeverity;
 
 /**
  * Intellij {@link ExternalAnnotator} implementation which get the current LSP diagnostics for a given file and translate
  * them into Intellij {@link com.intellij.lang.annotation.Annotation}.
  */
-public class LSPDiagnosticAnnotator extends ExternalAnnotator<LSPVirtualFileWrapper, LSPVirtualFileWrapper> {
+public class LSPDiagnosticAnnotator extends ExternalAnnotator<Boolean, Boolean> {
 
-    @Nullable
-    @Override
-    public LSPVirtualFileWrapper collectInformation(@NotNull PsiFile file, @NotNull Editor editor, boolean hasErrors) {
-        try {
-            return LSPVirtualFileWrapper.getLSPVirtualFileWrapper(file.getVirtualFile());
-        } catch (Exception e) {
-            return null;
-        }
-    }
+	@Nullable
+	@Override
+	public Boolean collectInformation(@NotNull PsiFile file, @NotNull Editor editor, boolean hasErrors) {
+		return Boolean.TRUE;
+	}
 
-    @Override
-    public @Nullable LSPVirtualFileWrapper doAnnotate(LSPVirtualFileWrapper wrapper) {
-        return wrapper;
-    }
+	@Override
+	public @Nullable Boolean doAnnotate(Boolean unused) {
+        return Boolean.TRUE;
+	}
 
     @Override
-    public void apply(@NotNull PsiFile file, LSPVirtualFileWrapper editorWrapper, @NotNull AnnotationHolder holder) {
-        // Get current LSP diagnostics of the current file
-        LSPVirtualFileWrapper fileWrapper = LSPVirtualFileWrapper.getLSPVirtualFileWrapper(file.getVirtualFile());
-        final Collection<LSPDiagnosticsForServer> diagnosticsPerServer = fileWrapper.getAllDiagnostics();
+    public void apply(@NotNull PsiFile file, Boolean unused, @NotNull AnnotationHolder holder) {
+        URI fileUri = LSPIJUtils.toUri(file);
         Document document = LSPIJUtils.getDocument(file.getVirtualFile());
 
         // Loop for language server which report diagnostics for the given file
-        diagnosticsPerServer.forEach(ds -> {
-            boolean codeActionsLoading = false;
-            // Loop for LSP diagnostics to transform it to Intellij annotation.
-            for (Diagnostic diagnostic : ds.getDiagnostics()) {
-                codeActionsLoading = codeActionsLoading | createAnnotation(diagnostic, document, ds, holder);
+        var servers = LanguageServiceAccessor.getInstance(file.getProject())
+                .getStartedServers();
+        for (var ls : servers) {
+            LSPVirtualFileData data = ls.getLSPVirtualFileData(fileUri);
+            if (data != null) {
+                // The file is mapped with the current language server
+                var ds = data.getDiagnosticsForServer();
+                // Loop for LSP diagnostics to transform it to Intellij annotation.
+                for (Diagnostic diagnostic : ds.getDiagnostics()) {
+                    ProgressManager.checkCanceled();
+                    createAnnotation(diagnostic, document, ds, holder);
+                }
             }
-            if (codeActionsLoading) {
-                // QuickFixes are loading, refresh them in a background thread
-                ds.refreshQuickFixesIfNeeded();
-            }
-        });
+        }
     }
 
-    private static boolean createAnnotation(Diagnostic diagnostic, Document document, LSPDiagnosticsForServer diagnosticsForServer, AnnotationHolder holder) {
-        final int start = LSPIJUtils.toOffset(diagnostic.getRange().getStart(), document);
-        final int end = LSPIJUtils.toOffset(diagnostic.getRange().getEnd(), document);
-        if (start >= end) {
+    private static void createAnnotation(Diagnostic diagnostic, Document document, LSPDiagnosticsForServer diagnosticsForServer, AnnotationHolder holder) {
+        TextRange range = LSPIJUtils.toTextRange(diagnostic.getRange(), document);
+        if (range == null) {
             // Language server reports invalid diagnostic, ignore it.
-            return false;
+            return;
         }
         // Collect information required to create Intellij Annotations
         HighlightSeverity severity = toHighlightSeverity(diagnostic.getSeverity());
-        TextRange range = new TextRange(start, end);
         String message = diagnostic.getMessage();
-        List<IntentionAction> fixes = diagnosticsForServer.getQuickFixesFor(diagnostic);
-        
+
         // Create Intellij Annotation from the given LSP diagnostic
         AnnotationBuilder builder = holder
                 .newAnnotation(severity, message)
                 .range(range);
 
-        // Register quick fixes if there are available
-        boolean codeActionsLoading = LSPDiagnosticsForServer.isCodeActionsLoading(fixes);
-        if (!codeActionsLoading) {
-            for (IntentionAction fix : fixes) {
-                builder.withFix(fix);
-            }
+        // Register lazy quick fixes
+        List<LSPLazyCodeActionIntentionAction> fixes = diagnosticsForServer.getQuickFixesFor(diagnostic);
+        for (IntentionAction fix : fixes) {
+            builder.withFix(fix);
         }
         builder.create();
-        return codeActionsLoading;
-    }
-
-    private static HighlightSeverity toHighlightSeverity(DiagnosticSeverity severity) {
-        if (severity == null) {
-            return HighlightSeverity.ERROR;
-        }
-        switch (severity) {
-            case Warning:
-                return HighlightSeverity.WEAK_WARNING;
-            case Hint:
-            case Information:
-                return HighlightSeverity.INFORMATION;
-            default:
-                return HighlightSeverity.ERROR;
-        }
     }
 
 }

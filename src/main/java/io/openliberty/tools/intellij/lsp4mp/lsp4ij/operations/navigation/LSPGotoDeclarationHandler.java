@@ -23,11 +23,13 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LSPIJUtils;
 import io.openliberty.tools.intellij.lsp4mp.lsp4ij.LanguageServiceAccessor;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.internal.CancellationSupport;
+import io.openliberty.tools.intellij.lsp4mp.lsp4ij.internal.CancellationUtil;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.internal.core.ls.PsiUtilsLSImpl;
 import org.eclipse.lsp4j.DefinitionParams;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
-import org.eclipse.lsp4j.TextDocumentIdentifier;
+import org.eclipse.lsp4j.jsonrpc.ResponseErrorException;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -40,10 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public class LSPGotoDeclarationHandler implements GotoDeclarationHandler {
@@ -52,30 +51,43 @@ public class LSPGotoDeclarationHandler implements GotoDeclarationHandler {
     @Nullable
     @Override
     public PsiElement[] getGotoDeclarationTargets(@Nullable PsiElement sourceElement, int offset, Editor editor) {
-        try {
-            URI uri = LSPIJUtils.toUri(editor.getDocument());
-            if (uri != null) {
-                DefinitionParams parms = new DefinitionParams(new TextDocumentIdentifier(uri.toString()), LSPIJUtils.toPosition(offset, editor.getDocument()));
-                Set<PsiElement> targets = new HashSet<>();
-                try {
-                    LanguageServiceAccessor.getInstance(editor.getProject()).getLanguageServers(editor.getDocument(), capabilities -> LSPIJUtils.hasCapability(capabilities.getDefinitionProvider())).thenComposeAsync(servers ->
-
-                        CompletableFuture.allOf(servers.stream().map(server -> server.getTextDocumentService().definition(parms).thenAcceptAsync(definitions -> targets.addAll(toElements(editor.getProject(), definitions))))
-                        .toArray(CompletableFuture[]::new))).get(1_000, TimeUnit.MILLISECONDS);
-                } catch (ExecutionException | TimeoutException e) {
+        URI uri = LSPIJUtils.toUri(editor.getDocument());
+        if (uri != null) {
+            VirtualFile file = LSPIJUtils.getFile(sourceElement);
+            DefinitionParams params = new DefinitionParams(LSPIJUtils.toTextDocumentIdentifier(uri), LSPIJUtils.toPosition(offset, editor.getDocument()));
+            Set<PsiElement> targets = new HashSet<>();
+            final CancellationSupport cancellationSupport = new CancellationSupport();
+            try {
+                LanguageServiceAccessor.getInstance(editor.getProject())
+                        .getLanguageServers(file, capabilities -> LSPIJUtils.hasCapability(capabilities.getDefinitionProvider()))
+                        .thenComposeAsync(languageServers ->
+                                cancellationSupport.execute(
+                                        CompletableFuture.allOf(
+                                                languageServers
+                                                        .stream()
+                                                        .map(server ->
+                                                                cancellationSupport.execute(server.getServer().getTextDocumentService().definition(params))
+                                                                        .thenAcceptAsync(definitions -> targets.addAll(toElements(editor.getProject(), definitions))))
+                                                        .toArray(CompletableFuture[]::new))))
+                        .get(1_000, TimeUnit.MILLISECONDS);
+            } catch (ResponseErrorException | ExecutionException | CancellationException e) {
+                // do not report error if the server has cancelled the request
+                if (!CancellationUtil.isRequestCancelledException(e)) {
                     LOGGER.warn(e.getLocalizedMessage(), e);
                 }
-                return targets.toArray(new PsiElement[targets.size()]);
+            } catch (TimeoutException e) {
+                LOGGER.warn(e.getLocalizedMessage(), e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOGGER.warn(e.getLocalizedMessage(), e);
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOGGER.warn(e.getLocalizedMessage(), e);
+            return targets.toArray(new PsiElement[targets.size()]);
         }
         return new PsiElement[0];
     }
 
     private List<PsiElement> toElements(Project project, Either<List<? extends Location>, List<? extends LocationLink>> definitions) {
-        List<? extends Location> locations = definitions!=null?toLocation(definitions): Collections.emptyList();
+        List<? extends Location> locations = definitions != null ? toLocation(definitions) : Collections.emptyList();
         return locations.stream().map(location -> toElement(project, location)).filter(Objects::nonNull).collect(Collectors.toList());
     }
 

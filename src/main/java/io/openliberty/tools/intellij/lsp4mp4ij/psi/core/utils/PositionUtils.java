@@ -9,12 +9,15 @@
 *******************************************************************************/
 package io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils;
 
+import com.intellij.codeInsight.daemon.impl.analysis.HighlightNamesUtil;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
+import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.IPsiUtils;
 import org.eclipse.lsp4j.Range;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Position utilities.
@@ -57,7 +60,6 @@ public class PositionUtils {
 	 * @param method the java type.
 	 * @param utils  the JDT utilities.
 	 * @return the LSP range for the given method name.
-	 * @throws JavaModelException
 	 */
 	public static Range toNameRange(PsiMethod method, IPsiUtils utils) {
 		PsiFile openable = method.getContainingFile();
@@ -65,4 +67,16 @@ public class PositionUtils {
 		return utils.toRange(openable, sourceRange.getStartOffset(), sourceRange.getLength());
 	}
 
+	/**
+	 * Returns the LSP Range for the class declaration of the given type
+	 *
+	 * @param type  the java type.
+	 * @param utils the JDT utilities.
+	 * @return the LSP range the class declaration of the given type.
+	 */
+	public static Range toClassDeclarationRange(@NotNull PsiClass type, @NotNull IPsiUtils utils) {
+		PsiFile openable = type.getContainingFile();
+		TextRange sourceRange = HighlightNamesUtil.getClassDeclarationTextRange(type);
+		return utils.toRange(openable, sourceRange.getStartOffset(), sourceRange.getLength());
+	}
 }

@@ -14,8 +14,8 @@ package io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.hover;
 import com.intellij.openapi.module.Module;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.AbstractJavaContext;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.IPsiUtils;
+import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.java.AbstractJavaContext;
 import org.eclipse.lsp4mp.commons.DocumentFormat;
 import org.eclipse.lsp4j.Position;
 
@@ -36,7 +36,7 @@ public class JavaHoverContext extends AbstractJavaContext {
 	private final boolean surroundEqualsWithSpaces;
 
 	public JavaHoverContext(String uri, PsiFile typeRoot, IPsiUtils utils, Module module, PsiElement hoverElement,
-                            Position hoverPosition, DocumentFormat documentFormat, boolean surroundEqualsWithSpaces) {
+							Position hoverPosition, DocumentFormat documentFormat, boolean surroundEqualsWithSpaces) {
 		super(uri, typeRoot, utils, module);
 		this.hoverElement = hoverElement;
 		this.hoverPosition = hoverPosition;

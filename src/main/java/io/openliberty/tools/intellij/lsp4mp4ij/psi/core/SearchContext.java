@@ -12,6 +12,7 @@ package io.openliberty.tools.intellij.lsp4mp4ij.psi.core;
 
 import com.intellij.openapi.module.Module;
 import com.intellij.psi.search.SearchScope;
+import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.IPropertiesCollector;
 import io.openliberty.tools.intellij.lsp4mp4ij.psi.core.utils.IPsiUtils;
 import org.eclipse.lsp4mp.commons.DocumentFormat;
 
